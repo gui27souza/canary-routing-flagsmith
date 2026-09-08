@@ -24,6 +24,13 @@ func (m *mockFlagsmithSdk) GetEnvironmentFlags(ctx context.Context) (flagsmith.F
 	return flagsmith.Flags{}, nil
 }
 
+func TestNewClient_EmptyApiKey(t *testing.T) {
+	_, err := flags.NewClient(t.Context(), "")
+	if err == nil {
+		t.Errorf("Expected error when apiKey is empty")
+	}
+}
+
 func TestMonitorFlagsReady(t *testing.T) {
 
 	mockSdk := &mockFlagsmithSdk{shouldFail: false}

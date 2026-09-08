@@ -1,10 +1,10 @@
 package handlers_test
 
 import (
-	"context"
 	"encoding/json"
 	"goflagsmith/internal/handlers"
 	"goflagsmith/internal/state"
+	"goflagsmith/internal/testutil"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -12,27 +12,22 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-type mockFlagsService struct{}
-
-func (m *mockFlagsService) IsFeatureEnabled(ctx context.Context, featureName string) bool {
-	return true
-}
-
-func setupRouter(h *handlers.AppHandler) *gin.Engine {
-	gin.SetMode(gin.TestMode)
-	r := gin.New()
-	r.GET("/readyz", h.Readyz)
-	return r
+func setupMockRouterReadyz(handler *handlers.AppHandler) *gin.Engine {
+	return testutil.MockRouter(
+		http.MethodGet, "/readyz", handler.Readyz,
+	)
 }
 
 func TestReadyz_NotReady(t *testing.T) {
 
 	appState := state.NewState()
-	mockFlags := &mockFlagsService{}
+	mockFlags := testutil.NewMockService(
+		testutil.NewMockReader(true, "", nil, nil, nil),
+	)
 
 	h := handlers.NewAppHandler(appState, mockFlags)
 
-	router := setupRouter(h)
+	router := setupMockRouterReadyz(h)
 
 	// Simulates a GET request to /readyz
 	req, _ := http.NewRequest(http.MethodGet, "/readyz", nil)
@@ -63,9 +58,11 @@ func TestReadyz_Ready(t *testing.T) {
 	appState.SetClientsReady()
 	appState.SetFeaturesReady()
 
-	mockFlags := &mockFlagsService{}
+	mockFlags := testutil.NewMockService(
+		testutil.NewMockReader(true, "", nil, nil, nil),
+	)
 	h := handlers.NewAppHandler(appState, mockFlags)
-	router := setupRouter(h)
+	router := setupMockRouterReadyz(h)
 
 	// Simulates a GET request to /readyz
 	req, _ := http.NewRequest(http.MethodGet, "/readyz", nil)
