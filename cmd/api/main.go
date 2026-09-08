@@ -2,9 +2,12 @@ package main
 
 import (
 	"context"
+	"errors"
 	"log"
 	"net/http"
 	"os"
+	"os/signal"
+	"syscall"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -18,41 +21,60 @@ import (
 
 func main() {
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
 
 	appState := state.NewState()
 
-	flagsSvc, err := flags.NewClient(ctx, os.Getenv("FLAGSMITH_API_KEY"))
+	api_key := os.Getenv("FLAGSMITH_API_KEY")
+	flagsSvc, err := flags.NewClient(ctx, api_key)
 	if err != nil {
-		// TODO - gracefull shutdown
+		log.Fatalf("FATAL: failed to initialize Flagsmith client: %v", err)
 	}
 	appState.SetClientsReady()
 
 	interval := 2 * time.Second
-	flagsSvc.MonitorFlagsReady(
-		ctx, appState, interval,
-	)
+	flagsSvc.MonitorFlagsReady(ctx, appState, interval)
 	flagsSvc.StartRulesSync(ctx, interval)
 
 	h := handlers.NewAppHandler(appState, flagsSvc)
 
-	engine := router.NewEngine(
-		flagsSvc, appState, hash.NormalizedHash, time.Now,
-	)
-	rh := handlers.NewRouteHandler(engine)
+	var bc router.BucketCalculator = hash.NormalizedHash
+	var now router.Now = time.Now
+	eng := router.NewEngine(flagsSvc, appState, bc, now)
+	rh := handlers.NewRouteHandler(eng)
 
-	router := gin.Default()
+	r := gin.Default()
 
-	router.GET("/healthz", func(c *gin.Context) {
+	r.GET("/healthz", func(c *gin.Context) {
 		c.String(http.StatusOK, "server is running")
 	})
 
-	router.GET("/readyz", h.Readyz)
+	r.GET("/readyz", h.Readyz)
 
-	router.POST("/decide", rh.Handle)
+	r.POST("/decide", rh.Handle)
 
-	if err := router.Run(":8080"); err != nil {
-		log.Fatalf("FATAL: HTTP server terminated with error: %v", err)
+	srv := &http.Server{
+		Addr:    ":8080",
+		Handler: r,
 	}
+
+	go func() {
+		log.Printf("INFO: HTTP server listening on %s", srv.Addr)
+		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			log.Fatalf("FATAL: HTTP server error: %v", err)
+		}
+	}()
+
+	<-ctx.Done()
+	log.Println("WARN: Shutdown signal received, shutting down gracefully...")
+
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	if err := srv.Shutdown(shutdownCtx); err != nil {
+		log.Fatalf("ERROR: Server forced to shutdown: %v", err)
+	}
+
+	log.Println("INFO: Server exited cleanly")
 }
