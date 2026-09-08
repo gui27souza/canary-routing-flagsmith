@@ -1,4 +1,6 @@
-# 🚀 Canary Engine — Dynamic Routing & Feature Delivery Microservice
+# 🚀 Canary Engine 
+
+> Dynamic Routing & Feature Delivery Microservice
 
 [![Go Version](https://img.shields.io/badge/Go-1.26%2B-blue.svg)](https://golang.org)
 [![Docker](https://img.shields.io/badge/Docker-Distroless%20Static-2496ED.svg)](https://github.com/GoogleContainerTools/distroless)
@@ -168,8 +170,8 @@ We implement a normalized hashing function using `hash/fnv` (FNV-1a 32-bit), map
 
 ```bash
 # Clone the repository
-git clone https://github.com/your-username/go-flagsmith.git
-cd go-flagsmith
+git clone https://github.com/gui27souza/canary-routing-flagsmith.git
+cd canary-routing-flagsmith
 
 # Export your Flagsmith API Key
 export FLAGSMITH_API_KEY="your-server-side-sdk-key"
