@@ -1,4 +1,4 @@
-include .env
+-include .env
 export
 
 export CGO_ENABLED := 0
@@ -12,9 +12,11 @@ else
 	CLEAN_CMD := rm -rf bin/ coverage.out
 endif
 
+DOCKER_IMAGE := go-flagsmith:latest
+
 .DEFAULT_GOAL := build
 
-.PHONY: fmt vet test coverage check-env dev build start clean
+.PHONY: fmt vet test coverage check-env dev build start clean docker-build docker-run load-test
 
 fmt:
 	@echo Formatting...
@@ -58,3 +60,15 @@ start: build
 clean:
 	@echo Cleaning artifacts...
 	@$(CLEAN_CMD)
+
+docker-build:
+	@echo Building distroless docker image...
+	@docker build -t $(DOCKER_IMAGE) .
+
+docker-run: check-env
+	@echo Running container on :8080...
+	@docker run --rm -p 8080:8080 -e FLAGSMITH_API_KEY=$(FLAGSMITH_API_KEY) $(DOCKER_IMAGE)
+
+load-test:
+	@echo Running k6 load test...
+	@k6 run load-test.js
